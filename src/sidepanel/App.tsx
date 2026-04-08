@@ -17,7 +17,7 @@ import './styles/index.css';
 type ViewMode = 'empty' | 'object' | 'profile' | 'permset';
 
 export const App: React.FC = () => {
-  const { session, loading: sessionLoading, error: sessionError } = useSessionInfo();
+  const { session, loading: sessionLoading, error: sessionError, retry: retrySession } = useSessionInfo();
   const api = useSalesforceApi(session);
   const orgId = session?.orgId ?? null;
 
@@ -72,12 +72,12 @@ export const App: React.FC = () => {
     return (
       <div className="app">
         <Header instanceUrl={null} orgId={null} />
-        <ErrorBanner message={sessionError} />
+        <ErrorBanner message={sessionError} onRetry={retrySession} />
         <div className="help-text">
           <p>To use SF Permission Matrix:</p>
           <ol>
             <li>Log into your Salesforce org in any Chrome tab</li>
-            <li>Click the SF Permission Matrix extension icon</li>
+            <li>Click <strong>Retry</strong> above, or reopen the extension</li>
           </ol>
         </div>
       </div>

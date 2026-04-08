@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MESSAGE_TYPES, STORAGE_KEYS } from '../../shared/constants';
 import type { SessionInfo } from '../../shared/message-types';
 
@@ -16,38 +16,39 @@ export function useSessionInfo() {
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => {
-    mountedRef.current = true;
+  const fetchSession = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Clear any stale stored session first
+      await chrome.storage.session.remove(STORAGE_KEYS.SESSION_INFO);
 
-    async function fetchSession() {
-      try {
-        // Ask the background script to find/return a session
-        // The background actively scans cookies if nothing is stored
-        const info = await chrome.runtime.sendMessage({
-          type: MESSAGE_TYPES.SESSION_INFO_REQUEST,
-        }) as SessionInfo | null;
+      const info = await chrome.runtime.sendMessage({
+        type: MESSAGE_TYPES.SESSION_INFO_REQUEST,
+      }) as SessionInfo | null;
 
-        if (!mountedRef.current) return;
+      if (!mountedRef.current) return;
 
-        if (isSessionValid(info)) {
-          setSession(info);
-        } else {
-          setError('Not connected to Salesforce. Make sure you are logged into a Salesforce org in another tab, then click the extension icon again.');
-        }
-      } catch {
-        if (mountedRef.current) {
-          setError('Failed to retrieve session info.');
-        }
-      } finally {
-        if (mountedRef.current) {
-          setLoading(false);
-        }
+      if (isSessionValid(info)) {
+        setSession(info);
+      } else {
+        setError('Not connected to Salesforce. Make sure you are logged into a Salesforce org in another tab.');
+      }
+    } catch {
+      if (mountedRef.current) {
+        setError('Failed to retrieve session info.');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
       }
     }
+  }, []);
 
+  useEffect(() => {
+    mountedRef.current = true;
     fetchSession();
 
-    // Listen for session updates (e.g., user logs into SF in another tab)
     const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
       if (!mountedRef.current) return;
       if (changes[STORAGE_KEYS.SESSION_INFO]) {
@@ -64,7 +65,7 @@ export function useSessionInfo() {
       mountedRef.current = false;
       chrome.storage.session.onChanged.removeListener(listener);
     };
-  }, []);
+  }, [fetchSession]);
 
-  return { session, loading, error };
+  return { session, loading, error, retry: fetchSession };
 }

@@ -11,6 +11,18 @@ interface PermissionMatrixProps {
   data: MatrixData;
 }
 
+// Render a single CRUD badge
+function CrudBadge({ label, active }: { label: string; active: boolean }) {
+  return (
+    <span
+      className={`crud-badge ${active ? 'crud-active' : 'crud-inactive'}`}
+      title={`${label}: ${active ? 'Yes' : 'No'}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
   const [fieldSearch, setFieldSearch] = useState('');
   const [filterLevel, setFilterLevel] = useState<PermissionLevel | 'ALL'>('ALL');
@@ -82,43 +94,29 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* Object-level permissions summary */}
-      <div className="obj-perms-summary">
-        <span className="summary-label">Object Permissions:</span>
-        <div className="obj-perms-chips">
-          {data.assignees.length === 0 && (
-            <span className="obj-perm-chip">No permissions configured</span>
-          )}
-          {data.assignees.slice(0, 10).map((assignee) => {
-            const op = data.objectPermissions[assignee.id];
-            if (!op) return null;
-            const perms: string[] = [];
-            if (op.read) perms.push('R');
-            if (op.create) perms.push('C');
-            if (op.edit) perms.push('E');
-            if (op.delete) perms.push('D');
-            return (
-              <span key={assignee.id} className="obj-perm-chip" title={assignee.label}>
-                <span className="chip-name">{assignee.label.substring(0, 20)}</span>
-                <span className="chip-perms">{perms.join('/') || 'None'}</span>
-              </span>
-            );
-          })}
-          {data.assignees.length > 10 && (
-            <span className="obj-perm-chip more">+{data.assignees.length - 10} more</span>
-          )}
-        </div>
-      </div>
-
       {/* Legend */}
       <div className="matrix-legend">
-        {Object.entries(PERMISSION_COLORS).map(([key, val]) => (
-          <span key={key} className="legend-item" style={{ backgroundColor: val.bg, color: val.text }}>
-            {val.short} = {val.label}
-          </span>
-        ))}
-        <span className="legend-item profile-indicator">[P] = Profile</span>
-        <span className="legend-item permset-indicator">[PS] = Permission Set</span>
+        <span className="legend-section">
+          <strong>Field:</strong>
+          {Object.entries(PERMISSION_COLORS).map(([key, val]) => (
+            <span key={key} className="legend-item" style={{ backgroundColor: val.bg, color: val.text }}>
+              {val.short} = {val.label}
+            </span>
+          ))}
+        </span>
+        <span className="legend-section">
+          <strong>Object:</strong>
+          <span className="crud-badge crud-active">C</span> Create
+          <span className="crud-badge crud-active">R</span> Read
+          <span className="crud-badge crud-active">E</span> Edit
+          <span className="crud-badge crud-active">D</span> Delete
+          <span className="crud-badge crud-active">VA</span> View All
+          <span className="crud-badge crud-active">MA</span> Modify All
+        </span>
+        <span className="legend-section">
+          <span className="legend-item profile-indicator">[P] = Profile</span>
+          <span className="legend-item permset-indicator">[PS] = Permission Set</span>
+        </span>
       </div>
 
       {/* Matrix Grid */}
@@ -149,7 +147,34 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
               ))}
             </div>
 
-            {/* Virtualized Rows */}
+            {/* Object-Level CRUD Row */}
+            <div className="matrix-row obj-crud-row">
+              <div className="matrix-cell field-col sticky-col obj-crud-label">
+                <span className="field-label">Object CRUD</span>
+                <span className="field-api">Create / Read / Edit / Delete</span>
+              </div>
+              {data.assignees.map((assignee) => {
+                const op = data.objectPermissions[assignee.id];
+                return (
+                  <div key={assignee.id} className="matrix-cell obj-crud-cell">
+                    {op ? (
+                      <div className="crud-badges">
+                        <CrudBadge label="C" active={op.create} />
+                        <CrudBadge label="R" active={op.read} />
+                        <CrudBadge label="E" active={op.edit} />
+                        <CrudBadge label="D" active={op.delete} />
+                        <CrudBadge label="VA" active={op.viewAll} />
+                        <CrudBadge label="MA" active={op.modifyAll} />
+                      </div>
+                    ) : (
+                      <span className="crud-none">No Access</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Field-Level Rows (Virtualized) */}
             <div
               className="matrix-body"
               style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}

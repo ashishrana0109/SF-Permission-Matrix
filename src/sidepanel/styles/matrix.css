@@ -127,12 +127,25 @@
 .matrix-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
   padding: 6px 16px;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
   flex-wrap: wrap;
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
+.legend-section {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-section strong {
+  color: var(--color-text);
+  margin-right: 2px;
 }
 
 .legend-item {
@@ -142,6 +155,62 @@
   border-radius: 3px;
   font-size: 10px;
   font-weight: 600;
+}
+
+/* CRUD badges */
+.crud-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: center;
+}
+
+.crud-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  min-width: 18px;
+}
+
+.crud-active {
+  background: var(--color-rw-bg);
+  color: var(--color-rw);
+}
+
+.crud-inactive {
+  background: var(--color-none-bg);
+  color: var(--color-none);
+  opacity: 0.5;
+}
+
+.crud-none {
+  font-size: 10px;
+  color: var(--color-none);
+  font-weight: 600;
+}
+
+/* Object CRUD row */
+.obj-crud-row {
+  background: #f5f7fa;
+  border-bottom: 2px solid var(--color-border) !important;
+  position: sticky;
+  z-index: 8;
+}
+
+.obj-crud-label {
+  background: #f5f7fa !important;
+  font-weight: 600;
+}
+
+.obj-crud-cell {
+  padding: 4px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .profile-indicator {
