@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SF Permission Matrix",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "View Salesforce field-level and object-level permissions across Profiles and Permission Sets",
   "permissions": [
     "storage",
@@ -13,7 +13,9 @@
     "https://*.force.com/*",
     "https://*.my.salesforce.com/*",
     "https://*.lightning.force.com/*",
-    "https://*.salesforce-setup.com/*"
+    "https://*.salesforce-setup.com/*",
+    "https://*.cloudforce.com/*",
+    "https://*.salesforce-sites.com/*"
   ],
   "background": {
     "service_worker": "src/background/service-worker.ts",
@@ -25,7 +27,10 @@
         "https://*.salesforce.com/*",
         "https://*.force.com/*",
         "https://*.my.salesforce.com/*",
-        "https://*.lightning.force.com/*"
+        "https://*.lightning.force.com/*",
+        "https://*.salesforce-setup.com/*",
+        "https://*.cloudforce.com/*",
+        "https://*.salesforce-sites.com/*"
       ],
       "js": ["src/content/content-script.ts"],
       "run_at": "document_idle"

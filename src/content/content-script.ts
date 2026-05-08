@@ -6,8 +6,10 @@ function detectSalesforcePage(): void {
   // Validate origin exists and is HTTPS
   if (!origin || origin === 'null' || !origin.startsWith('https://')) return;
 
-  // Use regex for precise domain matching
-  const sfDomainPattern = /^https:\/\/[a-zA-Z0-9-]+\.(lightning\.force\.com|my\.salesforce\.com|salesforce\.com|force\.com)(:\d+)?$/;
+  // Match any Salesforce domain variant without maintaining a hardcoded list.
+  // Covers: my.salesforce.com, lightning.force.com, my.salesforce-setup.com,
+  // sandboxes (*.sandbox.my.salesforce.com), scratch orgs, cloudforce, etc.
+  const sfDomainPattern = /\.(salesforce|force|cloudforce|salesforce-setup|salesforce-sites)\.(com|mil)(:\d+)?$/i;
   if (!sfDomainPattern.test(origin)) return;
 
   chrome.runtime.sendMessage({

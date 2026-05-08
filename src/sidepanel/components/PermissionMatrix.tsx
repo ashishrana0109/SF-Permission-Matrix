@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { MatrixCell } from './MatrixCell';
 import { ExportButton } from './ExportButton';
@@ -11,7 +11,6 @@ interface PermissionMatrixProps {
   data: MatrixData;
 }
 
-// Render a single CRUD badge
 function CrudBadge({ label, active }: { label: string; active: boolean }) {
   return (
     <span
@@ -26,14 +25,19 @@ function CrudBadge({ label, active }: { label: string; active: boolean }) {
 export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
   const [fieldSearch, setFieldSearch] = useState('');
   const [filterLevel, setFilterLevel] = useState<PermissionLevel | 'ALL'>('ALL');
-  const parentRef = useRef<HTMLDivElement>(null);
-  const { exportMatrix } = useExport();
 
+  // scrollAreaRef  = the main overflow:auto panel (permission cells + drives virtualizer)
+  // frozenBodyRef  = the frozen field-names panel (overflow:hidden, synced via JS)
+  // headerScrollRef = the header row wrapper (overflow:hidden, synced horizontally)
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const frozenBodyRef = useRef<HTMLDivElement>(null);
+  const headerScrollRef = useRef<HTMLDivElement>(null);
+
+  const { exportMatrix } = useExport();
   const debouncedSearch = useDebounce(fieldSearch, 200);
 
   const filteredFields = useMemo(() => {
     let fields = data.fields;
-
     if (debouncedSearch) {
       const term = debouncedSearch.toLowerCase();
       fields = fields.filter(
@@ -42,25 +46,37 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
           f.fieldLabel.toLowerCase().includes(term),
       );
     }
-
     if (filterLevel !== 'ALL') {
-      fields = fields.filter((f) => {
-        return Object.values(f.permissions).some((level) => level === filterLevel);
-      });
+      fields = fields.filter((f) =>
+        Object.values(f.permissions).some((level) => level === filterLevel),
+      );
     }
-
     return fields;
   }, [data.fields, debouncedSearch, filterLevel]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredFields.length,
-    getScrollElement: () => parentRef.current,
+    getScrollElement: () => scrollAreaRef.current,
     estimateSize: () => 36,
     overscan: 20,
   });
 
+  // Sync the main scroll area → frozen body (vertical) + header (horizontal)
+  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollLeft } = e.currentTarget;
+    if (frozenBodyRef.current) {
+      frozenBodyRef.current.scrollTop = scrollTop;
+    }
+    if (headerScrollRef.current) {
+      headerScrollRef.current.scrollLeft = scrollLeft;
+    }
+  }, []);
+
   const profileAssignees = useMemo(() => data.assignees.filter((a) => a.isProfile), [data.assignees]);
   const permSetAssignees = useMemo(() => data.assignees.filter((a) => !a.isProfile), [data.assignees]);
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
 
   return (
     <div className="matrix-container">
@@ -119,19 +135,68 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
         </span>
       </div>
 
-      {/* Matrix Grid */}
-      <div className="matrix-grid-wrapper" ref={parentRef}>
-        {filteredFields.length === 0 ? (
-          <div className="accordion-empty-state">
-            {data.fields.length === 0
-              ? 'No fields found for this object'
-              : 'No fields match your search/filter'}
+      {/* ── Two-panel layout ──────────────────────────────────────────
+          LEFT : frozen field-names column (no horizontal scroll)
+          RIGHT: scrollable header + permission matrix
+
+          position:sticky inside transform:translateY (used by virtualizer)
+          is broken in Chrome — so we split into two synced panels instead.
+      ─────────────────────────────────────────────────────────────── */}
+      <div className="matrix-layout">
+
+        {/* ── LEFT: frozen field-names column ── */}
+        <div className="matrix-frozen-col">
+
+          {/* Header cell for "Field" — mirrors right-panel header height */}
+          <div className="matrix-frozen-header">Field</div>
+
+          {/* Object CRUD label */}
+          <div className="matrix-frozen-crud">
+            <span className="field-label">Object CRUD</span>
+            <span className="field-api">Create / Read / Edit / Delete</span>
           </div>
-        ) : (
-          <>
-            {/* Sticky Header */}
+
+          {/* Field names — overflow hidden, scrollTop synced from right panel */}
+          <div className="matrix-frozen-body" ref={frozenBodyRef}>
+            {filteredFields.length === 0 ? null : (
+              <div style={{ height: `${totalSize}px`, position: 'relative' }}>
+                {virtualItems.map((virtualRow) => {
+                  const field = filteredFields[virtualRow.index];
+                  if (!field) return null;
+                  return (
+                    <div
+                      key={field.fieldName}
+                      className="matrix-row"
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${virtualRow.size}px`,
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                    >
+                      <div
+                        className="matrix-cell field-col"
+                        title={`${field.fieldLabel} (${field.fieldName})`}
+                      >
+                        <span className="field-label">{field.fieldLabel}</span>
+                        <span className="field-api">{field.fieldName}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── RIGHT: header + permission cells ── */}
+        <div className="matrix-right-col">
+
+          {/* Header row — scrollLeft synced from scroll area */}
+          <div className="matrix-header-scroll" ref={headerScrollRef}>
             <div className="matrix-header-row">
-              <div className="matrix-header-cell field-col sticky-col">Field</div>
               {data.assignees.map((assignee) => (
                 <div
                   key={assignee.id}
@@ -146,70 +211,79 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({ data }) => {
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Object-Level CRUD Row */}
-            <div className="matrix-row obj-crud-row">
-              <div className="matrix-cell field-col sticky-col obj-crud-label">
-                <span className="field-label">Object CRUD</span>
-                <span className="field-api">Create / Read / Edit / Delete</span>
+          {/* Scroll area — drives the virtualizer and syncs all other panels */}
+          <div
+            className="matrix-scroll-area"
+            ref={scrollAreaRef}
+            onScroll={handleScroll}
+          >
+            {filteredFields.length === 0 ? (
+              <div className="accordion-empty-state">
+                {data.fields.length === 0
+                  ? 'No fields found for this object'
+                  : 'No fields match your search/filter'}
               </div>
-              {data.assignees.map((assignee) => {
-                const op = data.objectPermissions[assignee.id];
-                return (
-                  <div key={assignee.id} className="matrix-cell obj-crud-cell">
-                    {op ? (
-                      <div className="crud-badges">
-                        <CrudBadge label="C" active={op.create} />
-                        <CrudBadge label="R" active={op.read} />
-                        <CrudBadge label="E" active={op.edit} />
-                        <CrudBadge label="D" active={op.delete} />
-                        <CrudBadge label="VA" active={op.viewAll} />
-                        <CrudBadge label="MA" active={op.modifyAll} />
+            ) : (
+              <>
+                {/* Object-level CRUD row */}
+                <div className="matrix-row obj-crud-row">
+                  {data.assignees.map((assignee) => {
+                    const op = data.objectPermissions[assignee.id];
+                    return (
+                      <div key={assignee.id} className="matrix-cell obj-crud-cell">
+                        {op ? (
+                          <div className="crud-badges">
+                            <CrudBadge label="C" active={op.create} />
+                            <CrudBadge label="R" active={op.read} />
+                            <CrudBadge label="E" active={op.edit} />
+                            <CrudBadge label="D" active={op.delete} />
+                            <CrudBadge label="VA" active={op.viewAll} />
+                            <CrudBadge label="MA" active={op.modifyAll} />
+                          </div>
+                        ) : (
+                          <span className="crud-none">No Access</span>
+                        )}
                       </div>
-                    ) : (
-                      <span className="crud-none">No Access</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
 
-            {/* Field-Level Rows (Virtualized) */}
-            <div
-              className="matrix-body"
-              style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}
-            >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const field = filteredFields[virtualRow.index];
-                if (!field) return null;
-                return (
-                  <div
-                    key={field.fieldName}
-                    className="matrix-row"
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                  >
-                    <div className="matrix-cell field-col sticky-col" title={`${field.fieldLabel} (${field.fieldName})`}>
-                      <span className="field-label">{field.fieldLabel}</span>
-                      <span className="field-api">{field.fieldName}</span>
-                    </div>
-                    {data.assignees.map((assignee) => {
-                      const level = field.permissions[assignee.id] ?? PermissionLevel.NO_ACCESS;
-                      const dimmed = filterLevel !== 'ALL' && level !== filterLevel;
-                      return <MatrixCell key={assignee.id} level={level} dimmed={dimmed} />;
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+                {/* Virtualized field permission rows */}
+                <div
+                  className="matrix-body"
+                  style={{ height: `${totalSize}px`, position: 'relative' }}
+                >
+                  {virtualItems.map((virtualRow) => {
+                    const field = filteredFields[virtualRow.index];
+                    if (!field) return null;
+                    return (
+                      <div
+                        key={field.fieldName}
+                        className="matrix-row"
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${virtualRow.size}px`,
+                          transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                      >
+                        {data.assignees.map((assignee) => {
+                          const level = field.permissions[assignee.id] ?? PermissionLevel.NO_ACCESS;
+                          const dimmed = filterLevel !== 'ALL' && level !== filterLevel;
+                          return <MatrixCell key={assignee.id} level={level} dimmed={dimmed} />;
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
